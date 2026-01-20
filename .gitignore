@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+
+# AI Models (Machine-specific or too large)
+*.engine
+*.onnx
+*.trt
+
+# Large Assets (Videos/Data)
+assets/*.MP4
+assets/*.SRT
+
+*.mp4
+uploads/
+
+# OS files
+.DS_Store
+Thumbs.db
