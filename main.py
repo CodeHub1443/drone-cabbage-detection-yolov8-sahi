@@ -1,5 +1,6 @@
 # ===================== Imports =====================
 from collections import defaultdict
+import os
 
 # ===================== Project related imports =====================
 from src.io.paths import check_paths
@@ -142,3 +143,19 @@ def main(cfg: Config | None = None, return_results: bool = False):
 
 if __name__ == "__main__":
     main()
+
+# ===================== API WRAPPER =====================
+
+def run_pipeline(video_filename: str, srt_filename: str):
+    """
+    API-safe wrapper.
+    Overrides VIDEO_PATH and SRT_PATH dynamically.
+    """
+    cfg = Config()
+
+    # Override paths
+    cfg.VIDEO_PATH = os.path.join("uploads", video_filename)
+    cfg.SRT_PATH = os.path.join("uploads", srt_filename)
+
+    return main(cfg=cfg, return_results=True)
+

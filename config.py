@@ -8,7 +8,7 @@ class Config:
 
     ENGINE_PATH: str = "best.engine"
     VIDEO_PATH: str = r"C:\Users\acer\Desktop\GK\Ayon\Cabbage-main\assets\DJI_0792.MP4"
-    SRT_PATH:   str = r"C:\Users\acer\Desktop\GK\Ayon\Cabbage-main\assets\DJI_0792.SRT"
+    SRT_PATH:   str = r"D:\GK\Ayon\Cabbage-main\assets\DJI_0792.SRT"
 
 
     # ---------- Mapping ----------
