@@ -37,13 +37,15 @@ app.add_middleware(
 # Serve generated videos + maps from the project root
 app.mount("/outputs", StaticFiles(directory=BASE_DIR, html=True), name="outputs")
 
-app.mount("/assets", StaticFiles(directory=ASSETS_DIR), name="assets")
+# The bundled frontend is optional (frontend_dist/ is not tracked in git).
+if ASSETS_DIR.is_dir():
+    app.mount("/assets", StaticFiles(directory=ASSETS_DIR), name="assets")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 # -----------------------
 # Health
 # -----------------------
-@app.post("/health")
+@app.api_route("/health", methods=["GET", "POST"])
 def health():
     return {"status": "ok"}
 
@@ -55,65 +57,54 @@ async def upload_files(
     video: UploadFile = File(...),
     srt: UploadFile = File(...)
 ):
-    if not video.filename.lower().endswith(".mp4"):
+    # Strip any directory components to prevent path traversal
+    video_name = Path(video.filename or "").name
+    srt_name = Path(srt.filename or "").name
+
+    if not video_name.lower().endswith(".mp4"):
         raise HTTPException(status_code=400, detail="Video must be .mp4")
 
-    if not srt.filename.lower().endswith(".srt"):
+    if not srt_name.lower().endswith(".srt"):
         raise HTTPException(status_code=400, detail="SRT must be .srt")
 
-    # Save video with original name
-    video_path = UPLOAD_DIR / video.filename
-    with open(video_path, "wb") as f:
+    with open(UPLOAD_DIR / video_name, "wb") as f:
         f.write(await video.read())
 
-    # Save SRT with original name
-    srt_path = UPLOAD_DIR / srt.filename
-    with open(srt_path, "wb") as f:
+    with open(UPLOAD_DIR / srt_name, "wb") as f:
         f.write(await srt.read())
 
-    # SAVE SIDECAR MAPPING (Critical for mismatched filenames)
-    # We save a file like "video.mp4.srt_name" containing "geographical_data.srt"
-    sidecar_path = UPLOAD_DIR / f"{video.filename}.srt_name"
-    with open(sidecar_path, "w", encoding="utf-8") as f:
-        f.write(srt.filename)
-
-    # Return structure expected by frontend
-    return {"filename": video.filename}
+    # Response shape expected by the frontend (src/lib/api.ts)
+    return {"video": video_name, "srt": srt_name}
 
 # -----------------------
-# Run inference (Mandatory Video + SRT via Sidecar)
+# Run inference (video + SRT filenames from /upload)
 # -----------------------
 @app.post("/run")
-def run_inference(filename: str):
-    video_path = UPLOAD_DIR / filename
-    sidecar_path = UPLOAD_DIR / f"{filename}.srt_name"
+def run_inference(video_filename: str, srt_filename: str):
+    video_name = Path(video_filename).name
+    srt_name = Path(srt_filename).name
 
-    if not video_path.exists():
-        raise HTTPException(status_code=404, detail="Uploaded video not found")
+    if not (UPLOAD_DIR / video_name).exists():
+        raise HTTPException(status_code=404, detail=f"Uploaded video '{video_name}' not found")
 
-    if not sidecar_path.exists():
-        raise HTTPException(
-            status_code=400, 
-            detail="Mandatory SRT metadata missing for this video. Please re-upload both."
-        )
+    if not (UPLOAD_DIR / srt_name).exists():
+        raise HTTPException(status_code=404, detail=f"Uploaded SRT '{srt_name}' not found")
 
-    # Read the original SRT filename from the sidecar
-    with open(sidecar_path, "r", encoding="utf-8") as f:
-        srt_filename = f.read().strip()
-    
-    srt_path = UPLOAD_DIR / srt_filename
-    if not srt_path.exists():
-        raise HTTPException(status_code=404, detail=f"Linked SRT file '{srt_filename}' not found")
-
-    return run_pipeline(filename, srt_filename)
+    return run_pipeline(video_name, srt_name)
 
 # -----------------------
 # Frontend SPA
 # -----------------------
+def _spa_index():
+    index_file = FRONTEND_DIR / "index.html"
+    if not index_file.exists():
+        return {"status": "ok", "detail": "API running. Frontend not bundled; run the dashboard separately."}
+    return FileResponse(index_file)
+
 @app.get("/")
 def index():
-    return FileResponse(FRONTEND_DIR / "index.html")
+    return _spa_index()
 
 @app.get("/{path:path}")
 def spa_fallback(path: str):
-    return FileResponse(FRONTEND_DIR / "index.html")
+    return _spa_index()

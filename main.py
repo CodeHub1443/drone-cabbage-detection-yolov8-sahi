@@ -153,6 +153,17 @@ def run_pipeline(video_filename: str, srt_filename: str):
     """
     cfg = Config()
 
+    # Fresh clones have no TensorRT engine (gitignored) or maybe no GPU:
+    # fall back to the tracked PyTorch weights and CPU.
+    if not os.path.exists(cfg.ENGINE_PATH) and os.path.exists("best.pt"):
+        cfg.ENGINE_PATH = "best.pt"
+    try:
+        import torch
+        if not torch.cuda.is_available():
+            cfg.DEVICE = "cpu"
+    except ImportError:
+        cfg.DEVICE = "cpu"
+
     # Override paths
     cfg.VIDEO_PATH = os.path.join("uploads", video_filename)
     cfg.SRT_PATH = os.path.join("uploads", srt_filename)
